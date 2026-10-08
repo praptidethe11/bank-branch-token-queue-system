@@ -19,11 +19,18 @@ public class TokenController {
 
     // CREATE - POST /api/tokens
     @PostMapping
-    public ResponseEntity<Token> createToken(@RequestBody Map<String, String> request) {
-        Token token = tokenService.createToken(
-                request.get("customerName"),
-                request.get("serviceType")
-        );
+    public ResponseEntity<?> createToken(@RequestBody Map<String, String> request) {
+        String customerName = request.get("customerName");
+        String serviceType = request.get("serviceType");
+
+        if (customerName == null || customerName.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("customerName is required");
+        }
+        if (serviceType == null || serviceType.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("serviceType is required");
+        }
+
+        Token token = tokenService.createToken(customerName, serviceType);
         return ResponseEntity.ok(token);
     }
 
