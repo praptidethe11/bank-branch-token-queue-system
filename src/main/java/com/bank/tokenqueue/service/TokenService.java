@@ -6,7 +6,7 @@ import com.bank.tokenqueue.repository.TokenRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -54,11 +54,15 @@ public class TokenService {
                 .orElseThrow(() -> new RuntimeException("Token not found: " + tokenNumber));
     }
 
-    public Map<TokenStatus, Long> getDashboardSummary() {
-        Map<TokenStatus, Long> summary = new EnumMap<>(TokenStatus.class);
+    public Map<String, Object> getDashboardSummary() {        
+        Map<String, Object> summary = new LinkedHashMap<>();
+        long total = 0;
         for (TokenStatus status : TokenStatus.values()) {
-            summary.put(status, tokenRepository.countByStatus(status));
+            long count = tokenRepository.countByStatus(status);
+            summary.put(status.name(), count);
+            total += count;
         }
+        summary.put("TOTAL", total);
         return summary;
     }
 }
