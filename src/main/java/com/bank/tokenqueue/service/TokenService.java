@@ -6,9 +6,10 @@ import com.bank.tokenqueue.repository.TokenRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
@@ -17,7 +18,6 @@ public class TokenService {
     @Autowired
     private TokenRepository tokenRepository;
 
-    // simple in-memory counter for generating readable token numbers like T-101
     private final AtomicInteger counter = new AtomicInteger(100);
 
     public Token createToken(String customerName, String serviceType) {
@@ -32,13 +32,25 @@ public class TokenService {
 
     public Token getTokenById(Long id) {
         return tokenRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Token not found with id: " + id));
+                .orElseThrow(() -> new NoSuchElementException("Token not found with id: " + id));
     }
 
     public Token updateStatus(Long id, TokenStatus newStatus) {
         Token token = getTokenById(id);
+        if (!isValidTransition(token.getStatus(), newStatus)) {
+            throw new IllegalStateException(
+                    "Cannot change status from " + token.getStatus() + " to " + newStatus);
+        }
         token.setStatus(newStatus);
         return tokenRepository.save(token);
+    }
+
+    private boolean isValidTransition(TokenStatus from, TokenStatus to) {
+        return switch (from) {
+            case WAITING -> to == TokenStatus.SERVING || to == TokenStatus.CANCELLED;
+            case SERVING -> to == TokenStatus.COMPLETED || to == TokenStatus.CANCELLED;
+            case COMPLETED, CANCELLED -> false;
+        };
     }
 
     public List<Token> searchByStatus(TokenStatus status) {
@@ -51,14 +63,18 @@ public class TokenService {
 
     public Token searchByTokenNumber(String tokenNumber) {
         return tokenRepository.findByTokenNumber(tokenNumber)
-                .orElseThrow(() -> new RuntimeException("Token not found: " + tokenNumber));
+                .orElseThrow(() -> new NoSuchElementException("Token not found: " + tokenNumber));
     }
 
-    public Map<TokenStatus, Long> getDashboardSummary() {
-        Map<TokenStatus, Long> summary = new EnumMap<>(TokenStatus.class);
+    public Map<String, Object> getDashboardSummary() {        
+        Map<String, Object> summary = new LinkedHashMap<>();
+        long total = 0;
         for (TokenStatus status : TokenStatus.values()) {
-            summary.put(status, tokenRepository.countByStatus(status));
+            long count = tokenRepository.countByStatus(status);
+            summary.put(status.name(), count);
+            total += count;
         }
+        summary.put("TOTAL", total);
         return summary;
     }
 }

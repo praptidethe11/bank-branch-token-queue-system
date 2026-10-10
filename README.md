@@ -31,5 +31,5 @@ Java 21, Spring Boot 3.3.4, Maven, H2 Database, Apache Tomcat
 
 ## Project Status
 
-MVP complete, release v1.0 pending.
-DevOps MVP — Final Year Project, Vidyalankar Institute of Technology
+- MVP complete, release v1.0 pending.
+  DevOps MVP — Final Year Project, Vidyalankar Institute of Technology
