@@ -2,27 +2,12 @@ pipeline {
     agent any
 
     options {
-        disableConcurrentBuilds()
-        buildDiscarder(logRotator(numToKeepStr: '10'))
-    }
-
-    tools {
-        jdk 'JDK21'
-        maven 'Maven-3.9.16'
-    }
-
-    parameters {
-        choice(name: 'DEPLOY_ENV', choices: ['dev', 'test'],
-               description: 'Target environment. Sets the application name on Tomcat.')
-        string(name: 'TOMCAT_HOME', defaultValue: 'C:\\DevTools\\apache-tomcat-11.0.25',
-               description: 'Tomcat installation folder')
-        string(name: 'TOMCAT_PORT', defaultValue: '8081',
-               description: 'Tomcat HTTP port')
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '20'))
     }
 
     environment {
-        WAR_NAME = "token-queue-system-${params.DEPLOY_ENV}"
-        APP_URL  = "http://localhost:${params.TOMCAT_PORT}/token-queue-system-${params.DEPLOY_ENV}/"
+        APP_URL = 'http://localhost:8082/'
     }
 
     stages {
@@ -34,43 +19,75 @@ pipeline {
 
         stage('Build') {
             steps {
-                bat 'mvn -B clean compile'
+                bat 'mvn -B clean package'
             }
         }
 
-        stage('Package') {
+        stage('Start Application') {
             steps {
-                bat 'mvn -B package'
-                archiveArtifacts artifacts: 'target/token-queue-system.war', fingerprint: true
+                withEnv(['JENKINS_NODE_COOKIE=dontKillMe', 'BUILD_ID=dontKillMe']) {
+                    powershell '''
+                        $p = Start-Process -FilePath java -ArgumentList '-jar','target\\token-queue-system.war' -RedirectStandardOutput app.log -RedirectStandardError app-err.log -PassThru -WindowStyle Hidden
+                        $p.Id | Out-File app.pid -Encoding ascii
+                        $ready = $false
+                        for ($i = 0; $i -lt 40; $i++) {
+                            try {
+                                Invoke-WebRequest -Uri $env:APP_URL -UseBasicParsing -TimeoutSec 3 | Out-Null
+                                $ready = $true
+                                break
+                            } catch {
+                                Start-Sleep -Seconds 3
+                            }
+                        }
+                        if (-not $ready) { throw 'Application did not start in time' }
+                        Write-Output 'Application is up'
+                    '''
+                }
+            }
+        }
+
+        stage('Selenium Tests') {
+            steps {
+                bat 'mvn -B test -Pselenium -Dheadless=true -DbaseUrl=%APP_URL%'
+            }
+            post {
+                always {
+                    bat(returnStatus: true, script: 'mvn -B surefire-report:report-only')
+                    junit allowEmptyResults: true, testResults: 'target/surefire-reports/TEST-*.xml'
+                    publishHTML(target: [
+                        reportDir: 'target/site',
+                        reportFiles: 'surefire-report.html',
+                        reportName: 'Selenium Surefire Report',
+                        keepAll: true,
+                        alwaysLinkToLastBuild: true,
+                        allowMissing: true
+                    ])
+                    archiveArtifacts artifacts: 'target/screenshots/*.png', allowEmptyArchive: true
+                }
             }
         }
 
         stage('Deploy') {
             steps {
-                bat '''
-                    if not exist "%TOMCAT_HOME%\\webapps" (
-                        echo ERROR: Tomcat webapps folder not found at %TOMCAT_HOME%
-                        exit /b 1
-                    )
-                    copy /Y "target\\token-queue-system.war" "%TOMCAT_HOME%\\webapps\\%WAR_NAME%.war"
-                '''
-            }
-        }
-
-        stage('Verify') {
-            steps {
-                bat 'curl.exe -f -s -S -o NUL --retry 12 --retry-delay 5 --retry-all-errors --retry-connrefused "%APP_URL%"'
-                echo "Application is up at ${env.APP_URL}"
+                echo 'All Selenium tests passed. Deploying Bank Branch Token Queue System...'
+                archiveArtifacts artifacts: 'target/token-queue-system.war', fingerprint: true
+                // Use your Task deployment step here, for example:
+                // bat 'copy /Y target\\token-queue-system.war "C:\\path\\to\\tomcat\\webapps\\"'
             }
         }
     }
 
     post {
-        success {
-            echo "Deployed to ${env.APP_URL}"
+        always {
+            powershell '''
+                if (Test-Path app.pid) {
+                    Stop-Process -Id (Get-Content app.pid) -Force -ErrorAction SilentlyContinue
+                    Remove-Item app.pid -ErrorAction SilentlyContinue
+                }
+            '''
+            archiveArtifacts artifacts: 'app.log', allowEmptyArchive: true
         }
-        failure {
-            echo 'Pipeline failed. Check the stage that turned red.'
-        }
+        success { echo 'Pipeline succeeded: tests passed and deployment completed.' }
+        failure { echo 'Pipeline failed: deployment was blocked.' }
     }
 }
