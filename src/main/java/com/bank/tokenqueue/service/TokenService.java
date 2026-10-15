@@ -37,7 +37,7 @@ public class TokenService {
 
     public Token updateStatus(Long id, TokenStatus newStatus) {
         Token token = getTokenById(id);
-        if (false&& !isValidTransition(token.getStatus(), newStatus)) {
+        if (!isValidTransition(token.getStatus(), newStatus)) {
             throw new IllegalStateException(
                     "Cannot change status from " + token.getStatus() + " to " + newStatus);
         }
@@ -66,7 +66,7 @@ public class TokenService {
                 .orElseThrow(() -> new NoSuchElementException("Token not found: " + tokenNumber));
     }
 
-    public Map<String, Object> getDashboardSummary() {        
+    public Map<String, Object> getDashboardSummary() {
         Map<String, Object> summary = new LinkedHashMap<>();
         long total = 0;
         for (TokenStatus status : TokenStatus.values()) {
