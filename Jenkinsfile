@@ -4,6 +4,7 @@ pipeline {
     options {
         timestamps()
         buildDiscarder(logRotator(numToKeepStr: '20'))
+        timeout(time: 15, unit: 'MINUTES')
     }
 
     environment {
@@ -25,24 +26,24 @@ pipeline {
 
         stage('Start Application') {
             steps {
-                withEnv(['JENKINS_NODE_COOKIE=dontKillMe', 'BUILD_ID=dontKillMe']) {
-                    powershell '''
-                        $p = Start-Process -FilePath java -ArgumentList '-jar','target\\token-queue-system.war' -RedirectStandardOutput app.log -RedirectStandardError app-err.log -PassThru -WindowStyle Hidden
-                        $p.Id | Out-File app.pid -Encoding ascii
-                        $ready = $false
-                        for ($i = 0; $i -lt 40; $i++) {
-                            try {
-                                Invoke-WebRequest -Uri $env:APP_URL -UseBasicParsing -TimeoutSec 3 | Out-Null
-                                $ready = $true
-                                break
-                            } catch {
-                                Start-Sleep -Seconds 3
-                            }
+                powershell '''
+                    $dir = (Get-Location).Path
+                    $cmd = "cmd /c java -jar $dir\\target\\token-queue-system.war > $dir\\app.log 2>&1"
+                    $r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $cmd; CurrentDirectory = $dir }
+                    $r.ProcessId | Out-File app.pid -Encoding ascii
+                    $ready = $false
+                    for ($i = 0; $i -lt 40; $i++) {
+                        try {
+                            Invoke-WebRequest -Uri $env:APP_URL -UseBasicParsing -TimeoutSec 3 | Out-Null
+                            $ready = $true
+                            break
+                        } catch {
+                            Start-Sleep -Seconds 3
                         }
-                        if (-not $ready) { throw 'Application did not start in time' }
-                        Write-Output 'Application is up'
-                    '''
-                }
+                    }
+                    if (-not $ready) { throw 'Application did not start in time' }
+                    Write-Output 'Application is up'
+                '''
             }
         }
 
@@ -81,9 +82,11 @@ pipeline {
         always {
             powershell '''
                 if (Test-Path app.pid) {
-                    Stop-Process -Id (Get-Content app.pid) -Force -ErrorAction SilentlyContinue
+                    $id = Get-Content app.pid
+                    taskkill /PID $id /T /F | Out-Null
                     Remove-Item app.pid -ErrorAction SilentlyContinue
                 }
+                exit 0
             '''
             archiveArtifacts artifacts: 'app.log', allowEmptyArchive: true
         }
