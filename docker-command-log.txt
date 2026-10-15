@@ -1,0 +1,37 @@
+  349  docker --version
+  350  docker info
+  352  docker --version
+  353  docker info
+  356  docker --version
+  357  docker info
+  362  git checkout -b feature/docker-image
+  364  ls -a | grep -i docker
+  365  touch Dockerfile .dockerignore
+  366  docker build -t token-queue-system:1.0 -t token-queue-system:latest .
+  367  docker images token-queue-system
+  369  docker image inspect token-queue-system:1.0 --format "ID: {{.Id}} | Size: {{.Size}} bytes | Created: {{.Created}} | OS/Arch: {{.Os}}/{{.Architecture}} | Ports: {{.Config.ExposedPorts}}"
+  370  docker history token-queue-system:1.0
+  371  docker run -d --name token-queue -p 9090:8082 token-queue-system:1.0
+  372  docker ps
+  373  docker port token-queue
+  374  docker port
+  377  docker logs --tail 20 token-queue
+  378  docker logs token-queue | grep Started
+  379  docker inspect --format "State: {{.State.Status}} | Started: {{.State.StartedAt}} | IP: {{.NetworkSettings.IPAddress}}" token-queue
+  380  docker stats --no-stream token-queue
+  381  docker exec token-queue java -version
+  382  docker inspect --format "State: {{.State.Status}} | Started: {{.State.StartedAt}} | IP: {{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}" token-queue
+  383  docker stop token-queue
+  384  docker ps
+  385  docker ps -a
+  386  docker start token-queue
+  387  docker ps
+  388  docker restart token-queue
+  389  docker ps
+  390  docker stop token-queue
+  391  docker rm token-queue
+  392  docker ps -a
+  393  docker images token-queue-system
+  394  docker run -d --name token-queue -p 9090:8082 token-queue-system:1.0
+  395  docker ps
+  396  history | grep docker > docker-command-log.txt
