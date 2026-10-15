@@ -21,8 +21,9 @@ pipeline {
     }
 
     environment {
-        WAR_NAME = "token-queue-system-${params.DEPLOY_ENV}"
-        APP_URL  = "http://localhost:${params.TOMCAT_PORT}/token-queue-system-${params.DEPLOY_ENV}/"
+        APP_URL    = 'http://localhost:8082/'
+        IMAGE_NAME = 'praptidethe/token-queue-system'
+        IMAGE_TAG  = "1.0.${env.BUILD_NUMBER}"
     }
 
     stages {
@@ -45,15 +46,44 @@ pipeline {
             }
         }
 
-        stage('Deploy') {
+        stage('Docker Build') {
             steps {
-                bat '''
-                    if not exist "%TOMCAT_HOME%\\webapps" (
-                        echo ERROR: Tomcat webapps folder not found at %TOMCAT_HOME%
-                        exit /b 1
-                    )
-                    copy /Y "target\\token-queue-system.war" "%TOMCAT_HOME%\\webapps\\%WAR_NAME%.war"
+                archiveArtifacts artifacts: 'target/token-queue-system.war', fingerprint: true
+                bat 'docker build --label git.commit=%GIT_COMMIT% --label jenkins.build=%BUILD_NUMBER% -t %IMAGE_NAME%:%IMAGE_TAG% -t %IMAGE_NAME%:latest .'
+                bat 'docker images %IMAGE_NAME%'
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DH_USER', passwordVariable: 'DH_PASS')]) {
+                    bat 'echo %DH_PASS%| docker login -u %DH_USER% --password-stdin'
+                    bat 'docker push %IMAGE_NAME%:%IMAGE_TAG%'
+                    bat 'docker push %IMAGE_NAME%:latest'
+                    bat 'docker logout'
+                }
+            }
+        }
+
+        stage('Deploy Container') {
+            steps {
+                bat(returnStatus: true, script: 'docker rm -f token-queue')
+                bat 'docker run -d --name token-queue -p 9090:8082 %IMAGE_NAME%:%IMAGE_TAG%'
+                powershell '''
+                    $ready = $false
+                    for ($i = 0; $i -lt 30; $i++) {
+                        try {
+                            Invoke-WebRequest -Uri 'http://localhost:9090/' -UseBasicParsing -TimeoutSec 3 | Out-Null
+                            $ready = $true
+                            break
+                        } catch {
+                            Start-Sleep -Seconds 3
+                        }
+                    }
+                    if (-not $ready) { throw 'Container did not respond on port 9090' }
+                    Write-Output 'Container is up on port 9090'
                 '''
+                bat 'docker ps --filter name=token-queue'
             }
         }
 
