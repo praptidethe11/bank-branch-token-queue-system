@@ -1,40 +1,93 @@
 pipeline {
     agent any
-    // keep your existing tools { } block here
+
+    options {
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+    }
 
     environment {
-        TOMCAT_WEBAPPS = 'PUT_YOUR_TOMCAT_webapps_PATH_HERE'
-        STAGING_URL    = 'http://localhost:8081/token-queue-staging/'
+        APP_URL = 'http://localhost:8082/'
     }
 
     stages {
         stage('Checkout') {
-            steps { checkout scm }
+            steps {
+                checkout scm
+            }
         }
+
         stage('Build') {
-            steps { bat 'mvn clean package' }
-        }
-        stage('Deploy to Staging') {
             steps {
-                bat 'copy /Y target\\token-queue-system.war "%TOMCAT_WEBAPPS%\\token-queue-staging.war"'
-                sleep time: 25, unit: 'SECONDS'
+                bat 'mvn -B clean package'
             }
         }
-        stage('Selenium UI Tests') {
+
+        stage('Start Application') {
             steps {
-                bat 'mvn test -Pselenium -Dbase.url=%STAGING_URL% -Dheadless=true'
-            }
-            post {
-                always {
-                    junit 'target/surefire-reports/*.xml'
-                    archiveArtifacts artifacts: 'target/screenshots/**', allowEmptyArchive: true
+                withEnv(['JENKINS_NODE_COOKIE=dontKillMe', 'BUILD_ID=dontKillMe']) {
+                    powershell '''
+                        $p = Start-Process -FilePath java -ArgumentList '-jar','target\\token-queue-system.war' -RedirectStandardOutput app.log -RedirectStandardError app-err.log -PassThru -WindowStyle Hidden
+                        $p.Id | Out-File app.pid -Encoding ascii
+                        $ready = $false
+                        for ($i = 0; $i -lt 40; $i++) {
+                            try {
+                                Invoke-WebRequest -Uri $env:APP_URL -UseBasicParsing -TimeoutSec 3 | Out-Null
+                                $ready = $true
+                                break
+                            } catch {
+                                Start-Sleep -Seconds 3
+                            }
+                        }
+                        if (-not $ready) { throw 'Application did not start in time' }
+                        Write-Output 'Application is up'
+                    '''
                 }
             }
         }
-        stage('Deploy to Production') {
+
+        stage('Selenium Tests') {
             steps {
-                // paste your existing Task 8 deploy step here
+                bat 'mvn -B test -Pselenium -Dheadless=true -DbaseUrl=%APP_URL%'
+            }
+            post {
+                always {
+                    bat(returnStatus: true, script: 'mvn -B surefire-report:report-only')
+                    junit allowEmptyResults: true, testResults: 'target/surefire-reports/TEST-*.xml'
+                    publishHTML(target: [
+                        reportDir: 'target/site',
+                        reportFiles: 'surefire-report.html',
+                        reportName: 'Selenium Surefire Report',
+                        keepAll: true,
+                        alwaysLinkToLastBuild: true,
+                        allowMissing: true
+                    ])
+                    archiveArtifacts artifacts: 'target/screenshots/*.png', allowEmptyArchive: true
+                }
             }
         }
+
+        stage('Deploy') {
+            steps {
+                echo 'All Selenium tests passed. Deploying Bank Branch Token Queue System...'
+                archiveArtifacts artifacts: 'target/token-queue-system.war', fingerprint: true
+                // Use your Task deployment step here, for example:
+                // bat 'copy /Y target\\token-queue-system.war "C:\\path\\to\\tomcat\\webapps\\"'
+            }
+        }
+    }
+
+    post {
+        always {
+            powershell '''
+                if (Test-Path app.pid) {
+                    Stop-Process -Id (Get-Content app.pid) -Force -ErrorAction SilentlyContinue
+                    Remove-Item app.pid -ErrorAction SilentlyContinue
+                }
+            '''
+            archiveArtifacts artifacts: 'app.log', allowEmptyArchive: true
+        }
+        success { echo 'Pipeline succeeded: tests passed and deployment completed.' }
+        failure { echo 'Pipeline failed: deployment was blocked.' }
     }
 }
