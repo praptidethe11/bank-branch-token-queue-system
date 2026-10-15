@@ -1,76 +1,40 @@
 pipeline {
     agent any
-
-    options {
-        disableConcurrentBuilds()
-        buildDiscarder(logRotator(numToKeepStr: '10'))
-    }
-
-    tools {
-        jdk 'JDK21'
-        maven 'Maven-3.9.16'
-    }
-
-    parameters {
-        choice(name: 'DEPLOY_ENV', choices: ['dev', 'test'],
-               description: 'Target environment. Sets the application name on Tomcat.')
-        string(name: 'TOMCAT_HOME', defaultValue: 'C:\\DevTools\\apache-tomcat-11.0.25',
-               description: 'Tomcat installation folder')
-        string(name: 'TOMCAT_PORT', defaultValue: '8081',
-               description: 'Tomcat HTTP port')
-    }
+    // keep your existing tools { } block here
 
     environment {
-        WAR_NAME = "token-queue-system-${params.DEPLOY_ENV}"
-        APP_URL  = "http://localhost:${params.TOMCAT_PORT}/token-queue-system-${params.DEPLOY_ENV}/"
+        TOMCAT_WEBAPPS = 'PUT_YOUR_TOMCAT_webapps_PATH_HERE'
+        STAGING_URL    = 'http://localhost:8081/token-queue-staging/'
     }
 
     stages {
         stage('Checkout') {
-            steps {
-                checkout scm
-            }
+            steps { checkout scm }
         }
-
         stage('Build') {
+            steps { bat 'mvn clean package' }
+        }
+        stage('Deploy to Staging') {
             steps {
-                bat 'mvn -B clean compile'
+                bat 'copy /Y target\\token-queue-system.war "%TOMCAT_WEBAPPS%\\token-queue-staging.war"'
+                sleep time: 25, unit: 'SECONDS'
             }
         }
-
-        stage('Package') {
+        stage('Selenium UI Tests') {
             steps {
-                bat 'mvn -B package'
-                archiveArtifacts artifacts: 'target/token-queue-system.war', fingerprint: true
+                bat 'mvn test -Pselenium -Dbase.url=%STAGING_URL% -Dheadless=true'
+            }
+            post {
+                always {
+                    junit 'target/surefire-reports/*.xml'
+                    archiveArtifacts artifacts: 'target/screenshots/**', allowEmptyArchive: true
+                }
             }
         }
-
-        stage('Deploy') {
+        stage('Deploy to Production') {
             steps {
-                bat '''
-                    if not exist "%TOMCAT_HOME%\\webapps" (
-                        echo ERROR: Tomcat webapps folder not found at %TOMCAT_HOME%
-                        exit /b 1
-                    )
-                    copy /Y "target\\token-queue-system.war" "%TOMCAT_HOME%\\webapps\\%WAR_NAME%.war"
-                '''
+                // paste your existing Task 8 deploy step here
             }
-        }
-
-        stage('Verify') {
-            steps {
-                bat 'curl.exe -f -s -S -o NUL --retry 12 --retry-delay 5 --retry-all-errors --retry-connrefused "%APP_URL%"'
-                echo "Application is up at ${env.APP_URL}"
-            }
-        }
-    }
-
-    post {
-        success {
-            echo "Deployed to ${env.APP_URL}"
-        }
-        failure {
-            echo 'Pipeline failed. Check the stage that turned red.'
         }
     }
 }
