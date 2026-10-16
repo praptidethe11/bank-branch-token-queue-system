@@ -18,3 +18,4 @@ Thumbs.db
 .mvn/
 mvnw
 mvnw.cmd
+ansible/artifacts/

@@ -1,0 +1,206 @@
+---
+- name: Provision and deploy Bank Branch Token Queue System
+  hosts: bank_nodes
+  become: true
+  gather_facts: false
+  vars:
+    app_user: tokenqueue
+    app_group: tokenqueue
+    app_home: /opt/token-queue
+    release_dir: /opt/token-queue/releases
+    current_link: /opt/token-queue/current
+    log_dir: /var/log/token-queue
+    conf_dir: /etc/token-queue
+    app_port: 8082
+    release_version: "1.0.0"
+    release_war: "{{ playbook_dir }}/artifacts/token-queue-system-{{ release_version }}.war"
+
+  tasks:
+    - name: Install required packages
+      ansible.builtin.apt:
+        name:
+          - openjdk-21-jre-headless
+          - curl
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Create application group
+      ansible.builtin.group:
+        name: "{{ app_group }}"
+        system: true
+
+    - name: Create application user
+      ansible.builtin.user:
+        name: "{{ app_user }}"
+        group: "{{ app_group }}"
+        system: true
+        shell: /usr/sbin/nologin
+        home: "{{ app_home }}"
+        create_home: false
+
+    - name: Create application folders
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: "{{ item.owner }}"
+        group: "{{ app_group }}"
+        mode: "0755"
+      loop:
+        - { path: "{{ app_home }}", owner: "{{ app_user }}" }
+        - { path: "{{ release_dir }}", owner: "{{ app_user }}" }
+        - { path: "{{ log_dir }}", owner: "{{ app_user }}" }
+        - { path: "{{ conf_dir }}", owner: "root" }
+
+    - name: Write environment file
+      ansible.builtin.copy:
+        dest: "{{ conf_dir }}/token-queue.env"
+        content: |
+          SERVER_PORT={{ app_port }}
+        owner: root
+        group: "{{ app_group }}"
+        mode: "0640"
+
+    - name: Install systemd unit
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/token-queue.service
+        content: |
+          [Unit]
+          Description=Bank Branch Token Queue System
+          After=network.target
+
+          [Service]
+          User={{ app_user }}
+          Group={{ app_group }}
+          WorkingDirectory={{ app_home }}
+          EnvironmentFile={{ conf_dir }}/token-queue.env
+          ExecStart=/usr/bin/java -jar {{ current_link }}/token-queue-system.war
+          StandardOutput=append:{{ log_dir }}/app.log
+          StandardError=append:{{ log_dir }}/app.log
+          Restart=on-failure
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload systemd
+
+    - name: Apply systemd changes now
+      ansible.builtin.meta: flush_handlers
+
+    - name: Look at the current release link
+      ansible.builtin.stat:
+        path: "{{ current_link }}"
+      register: current_stat
+
+    - name: Remember the previous release
+      ansible.builtin.set_fact:
+        previous_release: "{{ current_stat.stat.lnk_target | basename }}"
+      when: current_stat.stat.islnk | default(false)
+
+    - name: Create the release folder
+      ansible.builtin.file:
+        path: "{{ release_dir }}/{{ release_version }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: "0755"
+
+    - name: Copy the release package
+      ansible.builtin.copy:
+        src: "{{ release_war }}"
+        dest: "{{ release_dir }}/{{ release_version }}/token-queue-system.war"
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: "0640"
+
+    - name: Deploy the release with automatic rollback
+      block:
+        - name: Point current to the new release
+          ansible.builtin.file:
+            src: "{{ release_dir }}/{{ release_version }}"
+            dest: "{{ current_link }}"
+            state: link
+          register: switch
+
+        - name: Restart the service on the new release
+          ansible.builtin.systemd:
+            name: token-queue
+            state: restarted
+          when: switch.changed
+
+        - name: Make sure the service is enabled and running
+          ansible.builtin.systemd:
+            name: token-queue
+            enabled: true
+            state: started
+
+        - name: Wait for port {{ app_port }}
+          ansible.builtin.wait_for:
+            host: 127.0.0.1
+            port: "{{ app_port }}"
+            delay: 5
+            timeout: 60
+
+        - name: Health check
+          ansible.builtin.uri:
+            url: "http://127.0.0.1:{{ app_port }}/"
+            status_code: 200
+          register: health
+          retries: 10
+          delay: 3
+          until: health.status is defined and health.status == 200
+
+        - name: Record the deployed release
+          ansible.builtin.copy:
+            dest: "{{ conf_dir }}/RELEASE"
+            content: "{{ release_version }}\n"
+            owner: root
+            group: "{{ app_group }}"
+            mode: "0644"
+
+      rescue:
+        - name: Report the failed release
+          ansible.builtin.debug:
+            msg: "Release {{ release_version }} failed. Rolling back to {{ previous_release | default('none') }}"
+
+        - name: Stop when there is nothing to roll back to
+          ansible.builtin.fail:
+            msg: "Release {{ release_version }} failed and there is no previous release."
+          when: previous_release is not defined
+
+        - name: Point current back to the previous release
+          ansible.builtin.file:
+            src: "{{ release_dir }}/{{ previous_release }}"
+            dest: "{{ current_link }}"
+            state: link
+
+        - name: Clear the failed state of the service
+          ansible.builtin.command: systemctl reset-failed token-queue
+          changed_when: false
+          failed_when: false
+
+        - name: Restart the service on the previous release
+          ansible.builtin.systemd:
+            name: token-queue
+            state: restarted
+
+        - name: Health check after rollback
+          ansible.builtin.uri:
+            url: "http://127.0.0.1:{{ app_port }}/"
+            status_code: 200
+          register: rollback_health
+          retries: 15
+          delay: 3
+          until: rollback_health.status is defined and rollback_health.status == 200
+
+        - name: Rollback result
+          ansible.builtin.debug:
+            msg: "ROLLBACK COMPLETED: {{ previous_release }} is serving again (HTTP {{ rollback_health.status }})"
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true

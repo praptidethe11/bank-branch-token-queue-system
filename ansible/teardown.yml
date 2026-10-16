@@ -1,0 +1,51 @@
+---
+- name: Return the node to a clean state
+  hosts: bank_nodes
+  become: true
+  gather_facts: false
+  vars:
+    remove_packages: false
+  tasks:
+    - name: Stop and disable the service
+      ansible.builtin.systemd:
+        name: token-queue
+        state: stopped
+        enabled: false
+      failed_when: false
+
+    - name: Remove the systemd unit
+      ansible.builtin.file:
+        path: /etc/systemd/system/token-queue.service
+        state: absent
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Remove application, log and config folders
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /opt/token-queue
+        - /var/log/token-queue
+        - /etc/token-queue
+
+    - name: Remove the application user
+      ansible.builtin.user:
+        name: tokenqueue
+        state: absent
+        remove: true
+
+    - name: Remove the application group
+      ansible.builtin.group:
+        name: tokenqueue
+        state: absent
+
+    - name: Remove packages
+      ansible.builtin.apt:
+        name:
+          - openjdk-21-jre-headless
+        state: absent
+        autoremove: true
+      when: remove_packages | bool
