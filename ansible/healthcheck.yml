@@ -1,0 +1,37 @@
+---
+- name: Health check of the Bank Branch Token Queue node
+  hosts: bank_nodes
+  become: true
+  gather_facts: false
+  vars:
+    app_port: 8082
+  tasks:
+    - name: Service is active
+      ansible.builtin.command: systemctl is-active token-queue
+      register: svc
+      changed_when: false
+
+    - name: Port is listening
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ app_port }}"
+        timeout: 10
+
+    - name: Application answers HTTP 200
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ app_port }}/"
+        status_code: 200
+      register: web
+
+    - name: Read the deployed release
+      ansible.builtin.slurp:
+        src: /etc/token-queue/RELEASE
+      register: rel
+
+    - name: Health summary
+      ansible.builtin.debug:
+        msg:
+          - "service: {{ svc.stdout }}"
+          - "port {{ app_port }}: listening"
+          - "http status: {{ web.status }}"
+          - "release: {{ (rel.content | b64decode) | trim }}"
