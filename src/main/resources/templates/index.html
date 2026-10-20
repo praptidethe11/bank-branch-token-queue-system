@@ -3,27 +3,126 @@
 <head>
     <meta charset="UTF-8">
     <title>Bank Branch Token Queue System</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
-        .card { background: white; padding: 24px; border-radius: 8px; max-width: 500px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
-        h1 { color: #1a3c6e; font-size: 20px; }
-        code { background: #eee; padding: 2px 6px; border-radius: 4px; }
-        ul { line-height: 1.8; }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="card">
-        <h1>Bank Branch Token Queue System</h1>
-        <p>Application is running successfully.</p>
-        <p>Available API endpoints:</p>
-        <ul>
-            <li><code>POST /api/tokens</code> - create a token</li>
-            <li><code>GET /api/tokens</code> - view all tokens</li>
-            <li><code>GET /api/tokens/{id}</code> - view one token</li>
-            <li><code>PUT /api/tokens/{id}/status</code> - update status</li>
-            <li><code>GET /api/tokens/search</code> - search tokens</li>
-            <li><code>GET /api/tokens/dashboard</code> - summary dashboard</li>
-        </ul>
+<div class="topbar">
+    <span>Branch Queue Management System</span>
+    <span id="clock" aria-label="Current date and time"></span>
+</div>
+
+<header class="site-header">
+    <div class="brand">
+        <svg class="logo" viewBox="0 0 48 48" aria-hidden="true">
+            <circle cx="24" cy="24" r="23" fill="#ffffff"/>
+            <path d="M24 9 9 17h30L24 9z" fill="#0a2a66"/>
+            <rect x="12" y="20" width="4" height="14" fill="#0a2a66"/>
+            <rect x="22" y="20" width="4" height="14" fill="#0a2a66"/>
+            <rect x="32" y="20" width="4" height="14" fill="#0a2a66"/>
+            <rect x="9" y="36" width="30" height="4" fill="#f5a800"/>
+        </svg>
+        <div>
+            <h1>Bank Branch Token Queue System</h1>
+            <p>Digital token issue, counter control and branch queue display</p>
+        </div>
     </div>
+    <label class="role-switch">Role
+        <select id="role">
+            <option value="RECEPTIONIST">RECEPTIONIST</option>
+            <option value="TELLER">TELLER</option>
+            <option value="MANAGER">MANAGER</option>
+        </select>
+    </label>
+</header>
+
+<nav class="breadcrumb" aria-label="Breadcrumb">
+    <span>Home</span><span class="sep">/</span><span>Branch Services</span><span class="sep">/</span><span class="current">Queue Management</span>
+</nav>
+
+<main class="page">
+    <div id="roleHint" class="role-hint"></div>
+    <div id="message" role="status"></div>
+
+    <section class="card board">
+        <div class="board-head">
+            <h2>Now Serving</h2>
+            <span class="live">Live branch display</span>
+        </div>
+        <div class="board-grid">
+            <div class="serving-panel">
+                <div id="servingList" class="serving-list"></div>
+            </div>
+            <div class="waiting-panel">
+                <h3>Next in queue</h3>
+                <ol id="waitingList" class="waiting-list"></ol>
+            </div>
+        </div>
+    </section>
+
+    <div class="two-col">
+        <section class="card">
+            <h2>Create token <span class="tag">Kiosk / Receptionist</span></h2>
+            <div class="form-row">
+                <input id="customerName" type="text" placeholder="Customer name">
+                <select id="serviceType">
+                    <option value="GENERAL">GENERAL</option>
+                    <option value="LOAN">LOAN</option>
+                    <option value="ADVISORY">ADVISORY</option>
+                </select>
+                <button id="createBtn" type="button" class="btn-primary">Create token</button>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>Search <span class="tag">Token, customer or status</span></h2>
+            <div class="form-row">
+                <select id="searchBy">
+                    <option value="tokenNumber">tokenNumber</option>
+                    <option value="name">name</option>
+                    <option value="status">status</option>
+                </select>
+                <input id="searchInput" type="text" placeholder="Search value">
+                <button id="searchBtn" type="button" class="btn-primary">Search</button>
+                <button id="clearBtn" type="button" class="btn-ghost">Show all</button>
+            </div>
+        </section>
+    </div>
+
+    <section class="card">
+        <h2>Tokens <span class="tag">Teller counter</span></h2>
+        <div class="table-wrap">
+            <table id="tokenTable">
+                <thead>
+                <tr><th>Token</th><th>Customer</th><th>Service</th><th>Status</th><th>Actions</th></tr>
+                </thead>
+                <tbody id="tokenBody"></tbody>
+            </table>
+        </div>
+        <div id="emptyState" class="empty" hidden>No tokens to show. Create a token to start the queue.</div>
+    </section>
+
+    <section class="card">
+        <div class="dash-head">
+            <h2>Dashboard (Manager)</h2>
+            <button id="refreshDashboard" type="button" class="btn-primary">Refresh dashboard</button>
+        </div>
+        <div id="dashboardMessage"></div>
+        <div class="kpis">
+            <div class="kpi kpi-waiting"><span class="kpi-label">Waiting</span><b id="countWaiting">-</b></div>
+            <div class="kpi kpi-serving"><span class="kpi-label">Serving</span><b id="countServing">-</b></div>
+            <div class="kpi kpi-completed"><span class="kpi-label">Completed</span><b id="countCompleted">-</b></div>
+            <div class="kpi kpi-cancelled"><span class="kpi-label">Cancelled</span><b id="countCancelled">-</b></div>
+            <div class="kpi kpi-total"><span class="kpi-label">Total</span><b id="countTotal">-</b></div>
+        </div>
+    </section>
+</main>
+
+<footer class="site-footer">
+    <span>Bank Branch Token Queue System</span>
+    <span>Delivered with Git, Jenkins, Selenium, Docker and Ansible</span>
+</footer>
+
+<script src="app.js"></script>
 </body>
 </html>
