@@ -26,6 +26,16 @@ function cell(cls, text) {
   return td;
 }
 
+function statusCell(status) {
+  const td = document.createElement('td');
+  td.className = 'status';
+  const chip = document.createElement('span');
+  chip.className = 'chip chip-' + status.toLowerCase();
+  chip.textContent = status;
+  td.appendChild(chip);
+  return td;
+}
+
 function actionButton(id, status, label) {
   const b = document.createElement('button');
   b.type = 'button';
@@ -43,7 +53,7 @@ function render(tokens) {
     tr.appendChild(cell('number', t.tokenNumber));
     tr.appendChild(cell('name', t.customerName));
     tr.appendChild(cell('service', t.serviceType));
-    tr.appendChild(cell('status', t.status));
+    tr.appendChild(statusCell(t.status));
     const actions = document.createElement('td');
     actions.className = 'actions';
     actions.appendChild(actionButton(t.id, 'SERVING', 'Serve'));
@@ -52,11 +62,60 @@ function render(tokens) {
     tr.appendChild(actions);
     tokenBody.appendChild(tr);
   });
+  document.getElementById('emptyState').hidden = tokens.length > 0;
+}
+
+function updateBoard(tokens) {
+  const servingList = document.getElementById('servingList');
+  const waitingList = document.getElementById('waitingList');
+  servingList.innerHTML = '';
+  waitingList.innerHTML = '';
+  const serving = tokens.filter(function (t) { return t.status === 'SERVING'; });
+  const waiting = tokens.filter(function (t) { return t.status === 'WAITING'; })
+    .sort(function (a, b) { return a.id - b.id; });
+  if (serving.length === 0) {
+    const p = document.createElement('p');
+    p.className = 'muted';
+    p.textContent = 'No token is being served right now';
+    servingList.appendChild(p);
+  }
+  serving.slice(0, 4).forEach(function (t) {
+    const card = document.createElement('div');
+    card.className = 'serving-card';
+    const big = document.createElement('div');
+    big.className = 'big';
+    big.textContent = t.tokenNumber;
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = t.serviceType;
+    card.appendChild(big);
+    card.appendChild(meta);
+    servingList.appendChild(card);
+  });
+  if (waiting.length === 0) {
+    const li = document.createElement('li');
+    li.textContent = 'Queue is empty';
+    waitingList.appendChild(li);
+  }
+  waiting.slice(0, 6).forEach(function (t) {
+    const li = document.createElement('li');
+    li.textContent = t.tokenNumber;
+    const svc = document.createElement('span');
+    svc.className = 'svc';
+    svc.textContent = t.serviceType;
+    li.appendChild(svc);
+    waitingList.appendChild(li);
+  });
+  if (waiting.length > 6) {
+    const li = document.createElement('li');
+    li.textContent = '+ ' + (waiting.length - 6) + ' more waiting';
+    waitingList.appendChild(li);
+  }
 }
 
 async function loadTokens() {
   const res = await call('api/tokens');
-  if (res.ok) { render(res.data); } else { show(res.text, true); }
+  if (res.ok) { render(res.data); updateBoard(res.data); } else { show(res.text, true); }
 }
 
 async function createToken() {
@@ -118,6 +177,24 @@ async function loadDashboard() {
   document.getElementById('countCancelled').textContent = res.data.CANCELLED;
   document.getElementById('countTotal').textContent = res.data.TOTAL;
 }
+
+
+const HINTS = {
+  RECEPTIONIST: 'Receptionist: can create tokens, view and search. Cannot change status or open the dashboard.',
+  TELLER: 'Teller: can serve, complete or cancel tokens, view and search. Cannot create tokens or open the dashboard.',
+  MANAGER: 'Manager: can view, search and open the dashboard. Cannot create tokens or change status.'
+};
+function updateHint() { document.getElementById('roleHint').textContent = HINTS[role()] || ''; }
+roleSelect.addEventListener('change', updateHint);
+updateHint();
+
+function tickClock() {
+  document.getElementById('clock').textContent = new Date().toLocaleString('en-IN', {
+    weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+  });
+}
+tickClock();
+setInterval(tickClock, 30000);
 
 document.getElementById('createBtn').addEventListener('click', createToken);
 document.getElementById('searchBtn').addEventListener('click', search);
