@@ -109,11 +109,30 @@
         </div>
         <div id="dashboardMessage"></div>
         <div class="kpis">
-            <div class="kpi kpi-waiting"><span class="kpi-label">Waiting</span><b id="countWaiting">-</b></div>
-            <div class="kpi kpi-serving"><span class="kpi-label">Serving</span><b id="countServing">-</b></div>
-            <div class="kpi kpi-completed"><span class="kpi-label">Completed</span><b id="countCompleted">-</b></div>
-            <div class="kpi kpi-cancelled"><span class="kpi-label">Cancelled</span><b id="countCancelled">-</b></div>
-            <div class="kpi kpi-total"><span class="kpi-label">Total</span><b id="countTotal">-</b></div>
+            <div class="kpi kpi-waiting" data-filter="WAITING" title="Click to list these tokens"><span class="kpi-label">Waiting</span><b id="countWaiting">-</b></div>
+            <div class="kpi kpi-serving" data-filter="SERVING" title="Click to list these tokens"><span class="kpi-label">Serving</span><b id="countServing">-</b></div>
+            <div class="kpi kpi-completed" data-filter="COMPLETED" title="Click to list these tokens"><span class="kpi-label">Completed</span><b id="countCompleted">-</b></div>
+            <div class="kpi kpi-cancelled" data-filter="CANCELLED" title="Click to list these tokens"><span class="kpi-label">Cancelled</span><b id="countCancelled">-</b></div>
+            <div class="kpi kpi-total" data-filter="ALL" title="Click to list these tokens"><span class="kpi-label">Total</span><b id="countTotal">-</b></div>
+        </div>
+        <div id="dashDetail" class="dash-detail" hidden>
+            <h3 class="dash-sub">Token details <span class="tag">Click a count or a filter to narrow the list</span></h3>
+            <div class="dash-filters" role="group" aria-label="Filter tokens by status">
+                <button type="button" class="chip-btn active" data-filter="ALL">All</button>
+                <button type="button" class="chip-btn" data-filter="WAITING">Waiting</button>
+                <button type="button" class="chip-btn" data-filter="SERVING">Serving</button>
+                <button type="button" class="chip-btn" data-filter="COMPLETED">Completed</button>
+                <button type="button" class="chip-btn" data-filter="CANCELLED">Cancelled</button>
+            </div>
+            <div class="table-wrap">
+                <table id="dashTable">
+                    <thead>
+                    <tr><th>Token</th><th>Customer</th><th>Service</th><th>Status</th></tr>
+                    </thead>
+                    <tbody id="dashBody"></tbody>
+                </table>
+            </div>
+            <div id="dashEmpty" class="empty" hidden>No tokens with this status.</div>
         </div>
     </section>
 </main>
