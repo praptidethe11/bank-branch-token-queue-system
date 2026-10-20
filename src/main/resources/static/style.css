@@ -114,6 +114,16 @@ td.actions button { padding: 5px 10px; font-size: 13px; }
 
 .site-footer { background: var(--navy-dark); color: #cfd9ee; font-size: 13px; padding: 14px 28px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 
+/* dashboard token details */
+.kpi[data-filter] { cursor: pointer; }
+.kpi[data-filter]:hover { background: #eef4ff; }
+.dash-detail { margin-top: 18px; }
+.dash-detail[hidden] { display: none; }
+.dash-sub { color: var(--navy); font-size: 15px; margin: 0 0 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.dash-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.chip-btn { border-radius: 20px; padding: 4px 14px; font-size: 13px; background: #fff; color: var(--navy); border-color: #b8c4d2; }
+.chip-btn.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+
 @media (max-width: 860px) {
   .two-col, .board-grid { grid-template-columns: 1fr; }
   .kpis { grid-template-columns: repeat(2, 1fr); }

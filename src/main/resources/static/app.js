@@ -132,7 +132,10 @@ async function createToken() {
   if (!res.ok) { show(res.text, true); return; }
   show('Token ' + res.data.tokenNumber + ' created', false);
   nameField.value = '';
-  await loadTokens();
+  await document.querySelectorAll('.kpi[data-filter], .chip-btn').forEach(function (el) {
+  el.addEventListener('click', function () { setDashFilter(el.getAttribute('data-filter')); });
+});
+loadTokens();
 }
 
 async function updateStatus(id, status) {
@@ -143,7 +146,10 @@ async function updateStatus(id, status) {
   });
   if (!res.ok) { show(res.text, true); return; }
   show('Token ' + res.data.tokenNumber + ' is now ' + res.data.status, false);
-  await loadTokens();
+  await document.querySelectorAll('.kpi[data-filter], .chip-btn').forEach(function (el) {
+  el.addEventListener('click', function () { setDashFilter(el.getAttribute('data-filter')); });
+});
+loadTokens();
 }
 
 async function search() {
@@ -159,11 +165,49 @@ async function search() {
 
 async function showAll() {
   document.getElementById('searchInput').value = '';
-  await loadTokens();
+  await document.querySelectorAll('.kpi[data-filter], .chip-btn').forEach(function (el) {
+  el.addEventListener('click', function () { setDashFilter(el.getAttribute('data-filter')); });
+});
+loadTokens();
   show('Showing all tokens', false);
 }
 
+let dashTokens = [];
+let dashFilter = 'ALL';
+
+function renderDashList() {
+  const body = document.getElementById('dashBody');
+  body.innerHTML = '';
+  const list = dashTokens
+    .filter(function (t) { return dashFilter === 'ALL' || t.status === dashFilter; })
+    .sort(function (a, b) { return b.id - a.id; });
+  list.forEach(function (t) {
+    const tr = document.createElement('tr');
+    tr.appendChild(cell('d-number', t.tokenNumber));
+    tr.appendChild(cell('d-name', t.customerName));
+    tr.appendChild(cell('d-service', t.serviceType));
+    const td = document.createElement('td');
+    const chip = document.createElement('span');
+    chip.className = 'chip chip-' + t.status.toLowerCase();
+    chip.textContent = t.status;
+    td.appendChild(chip);
+    tr.appendChild(td);
+    body.appendChild(tr);
+  });
+  document.getElementById('dashEmpty').hidden = list.length > 0;
+  document.querySelectorAll('.chip-btn').forEach(function (b) {
+    b.classList.toggle('active', b.getAttribute('data-filter') === dashFilter);
+  });
+}
+
+function setDashFilter(value) {
+  if (document.getElementById('dashDetail').hidden) { return; }
+  dashFilter = value;
+  renderDashList();
+}
+
 async function loadDashboard() {
+  document.getElementById('dashDetail').hidden = true;
   const ids = ['countWaiting', 'countServing', 'countCompleted', 'countCancelled', 'countTotal'];
   ids.forEach(function (id) { document.getElementById(id).textContent = '-'; });
   const msg = document.getElementById('dashboardMessage');
@@ -176,6 +220,12 @@ async function loadDashboard() {
   document.getElementById('countCompleted').textContent = res.data.COMPLETED;
   document.getElementById('countCancelled').textContent = res.data.CANCELLED;
   document.getElementById('countTotal').textContent = res.data.TOTAL;
+  const all = await call('api/tokens');
+  if (all.ok) {
+    dashTokens = all.data;
+    document.getElementById('dashDetail').hidden = false;
+    renderDashList();
+  }
 }
 
 
@@ -200,4 +250,7 @@ document.getElementById('createBtn').addEventListener('click', createToken);
 document.getElementById('searchBtn').addEventListener('click', search);
 document.getElementById('clearBtn').addEventListener('click', showAll);
 document.getElementById('refreshDashboard').addEventListener('click', loadDashboard);
+document.querySelectorAll('.kpi[data-filter], .chip-btn').forEach(function (el) {
+  el.addEventListener('click', function () { setDashFilter(el.getAttribute('data-filter')); });
+});
 loadTokens();
