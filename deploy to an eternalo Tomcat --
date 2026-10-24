@@ -1,0 +1,79 @@
+[1mdiff --git a/pom.xml b/pom.xml[m
+[1mindex f680a77..19c1ce7 100644[m
+[1m--- a/pom.xml[m
+[1m+++ b/pom.xml[m
+[36m@@ -20,6 +20,12 @@[m
+ [m
+     <properties>[m
+         <java.version>21</java.version>[m
+[32m+[m[32m        <selenium.version>4.27.0</selenium.version>[m
+[32m+[m[32m        <test.groups></test.groups>[m
+[32m+[m[32m        <test.excludedGroups>ui</test.excludedGroups>[m
+[32m+[m[32m        <app.baseUrl>http://localhost:8082/</app.baseUrl>[m
+[32m+[m[32m        <headless>false</headless>[m
+[32m+[m[32m        <demoFailure>false</demoFailure>[m
+     </properties>[m
+ [m
+     <dependencies>[m
+[36m@@ -44,8 +50,7 @@[m
+             <scope>runtime</scope>[m
+         </dependency>[m
+ [m
+[31m-        <!-- Needed so the WAR can run standalone with Tomcat too (embedded),[m
+[31m-             and also deploy to an external Tomcat -->[m
+[32m+[m[32m        <!-- Lets the WAR run standalone and also deploy to an external Tomcat -->[m
+         <dependency>[m
+             <groupId>org.springframework.boot</groupId>[m
+             <artifactId>spring-boot-starter-tomcat</artifactId>[m
+[36m@@ -57,6 +62,13 @@[m
+             <artifactId>spring-boot-starter-test</artifactId>[m
+             <scope>test</scope>[m
+         </dependency>[m
+[32m+[m
+[32m+[m[32m        <dependency>[m
+[32m+[m[32m            <groupId>org.seleniumhq.selenium</groupId>[m
+[32m+[m[32m            <artifactId>selenium-java</artifactId>[m
+[32m+[m[32m            <version>${selenium.version}</version>[m
+[32m+[m[32m            <scope>test</scope>[m
+[32m+[m[32m        </dependency>[m
+     </dependencies>[m
+ [m
+     <build>[m
+[36m@@ -66,7 +78,35 @@[m
+                 <groupId>org.springframework.boot</groupId>[m
+                 <artifactId>spring-boot-maven-plugin</artifactId>[m
+             </plugin>[m
+[32m+[m[32m            <plugin>[m
+[32m+[m[32m                <groupId>org.apache.maven.plugins</groupId>[m
+[32m+[m[32m                <artifactId>maven-surefire-plugin</artifactId>[m
+[32m+[m[32m                <configuration>[m
+[32m+[m[32m                    <groups>${test.groups}</groups>[m
+[32m+[m[32m                    <excludedGroups>${test.excludedGroups}</excludedGroups>[m
+[32m+[m[32m                    <systemPropertyVariables>[m
+[32m+[m[32m                        <app.baseUrl>${app.baseUrl}</app.baseUrl>[m
+[32m+[m[32m                        <headless>${headless}</headless>[m
+[32m+[m[32m                        <demoFailure>${demoFailure}</demoFailure>[m
+[32m+[m[32m                    </systemPropertyVariables>[m
+[32m+[m[32m                </configuration>[m
+[32m+[m[32m            </plugin>[m
+[32m+[m[32m            <plugin>[m
+[32m+[m[32m                <groupId>org.apache.maven.plugins</groupId>[m
+[32m+[m[32m                <artifactId>maven-surefire-report-plugin</artifactId>[m
+[32m+[m[32m                <version>3.2.5</version>[m
+[32m+[m[32m            </plugin>[m
+         </plugins>[m
+     </build>[m
+ [m
+[31m-</project>[m
+[32m+[m[32m    <profiles>[m
+[32m+[m[32m        <profile>[m
+[32m+[m[32m            <id>selenium</id>[m
+[32m+[m[32m            <properties>[m
+[32m+[m[32m                <test.groups>ui</test.groups>[m
+[32m+[m[32m                <test.excludedGroups></test.excludedGroups>[m
+[32m+[m[32m            </properties>[m
+[32m+[m[32m        </profile>[m
+[32m+[m[32m    </profiles>[m
+[32m+[m
+[32m+[m[32m</project>[m
+\ No newline at end of file[m
