@@ -59,7 +59,7 @@ pipeline {
 
         stage('Selenium Tests') {
             steps {
-                bat 'mvn -B test -Pselenium -Dheadless=true -DbaseUrl=%APP_URL%'
+                bat 'mvn -B test -Pselenium -Dheadless=true -Dapp.baseUrl=%APP_URL%'
             }
             post {
                 always {
@@ -112,7 +112,7 @@ pipeline {
         stage('Deploy Container') {
             steps {
                 bat(returnStatus: true, script: 'docker rm -f token-queue')
-                bat 'docker run -d --name token-queue -p 9090:8082 %IMAGE_NAME%:%IMAGE_TAG%'
+                bat 'docker run -d --restart unless-stopped --name token-queue -p 9090:8082 %IMAGE_NAME%:%IMAGE_TAG%'
                 bat 'docker ps --filter name=token-queue'
             }
         }
