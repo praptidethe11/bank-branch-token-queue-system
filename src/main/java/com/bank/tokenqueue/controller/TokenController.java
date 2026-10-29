@@ -39,10 +39,13 @@ public class TokenController {
     @PostMapping
     public ResponseEntity<?> createToken(
             @RequestHeader(value = "X-Role", required = false) String role,
-            @RequestBody Map<String, String> request) {
+            @RequestBody(required = false) Map<String, String> request) {
         ResponseEntity<String> denied = denyUnless(role, RECEPTIONIST);
         if (denied != null) return denied;
 
+        if (request == null) {
+            return ResponseEntity.badRequest().body("customerName is required");
+        }
         String customerName = request.get("customerName");
         String serviceType = request.get("serviceType");
 
@@ -82,11 +85,18 @@ public class TokenController {
     public ResponseEntity<?> updateStatus(
             @RequestHeader(value = "X-Role", required = false) String role,
             @PathVariable Long id,
-            @RequestBody Map<String, String> request) {
+            @RequestBody(required = false) Map<String, String> request) {
         ResponseEntity<String> denied = denyUnless(role, TELLER);
         if (denied != null) return denied;
 
-        TokenStatus newStatus = TokenStatus.valueOf(request.get("status").toUpperCase());
+        if (request == null) {
+            return ResponseEntity.badRequest().body("status is required");
+        }
+        String s = request.get("status");
+        if (s == null || s.isBlank()) {
+            return ResponseEntity.badRequest().body("status is required");
+        }
+        TokenStatus newStatus = TokenStatus.valueOf(s.toUpperCase());
         return ResponseEntity.ok(tokenService.updateStatus(id, newStatus));
     }
 
